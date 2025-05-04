@@ -35,28 +35,37 @@ export interface AuditResult {
 export const crawlWebsite = async (url: string): Promise<AuditResult> => {
   const startTime: number = performance.now();
   try {
-    // Use a CORS proxy to bypass CORS restrictions
-    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-    const response = await fetch(corsProxy + url, {
+    // Use a more reliable CORS proxy
+    const corsProxy = 'https://api.allorigins.win/raw?url=';
+    const response = await fetch(corsProxy + encodeURIComponent(url), {
       headers: {
-        'Origin': window.location.origin,
-        'X-Requested-With': 'XMLHttpRequest'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const html = await response.text();
+    
+    if (!html || html.length < 100) {
+      throw new Error('Received empty or invalid response from the server');
+    }
+
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
     // Extract basic information
-    const title = doc.querySelector('title')?.textContent || '';
-    const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    const title = doc.querySelector('title')?.textContent?.trim() || '';
+    const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || '';
 
     // Extract headings
     const headings = {
-      h1: Array.from(doc.querySelectorAll('h1')).map(h => h.textContent || ''),
-      h2: Array.from(doc.querySelectorAll('h2')).map(h => h.textContent || ''),
-      h3: Array.from(doc.querySelectorAll('h3')).map(h => h.textContent || ''),
+      h1: Array.from(doc.querySelectorAll('h1')).map(h => h.textContent?.trim() || ''),
+      h2: Array.from(doc.querySelectorAll('h2')).map(h => h.textContent?.trim() || ''),
+      h3: Array.from(doc.querySelectorAll('h3')).map(h => h.textContent?.trim() || ''),
     };
 
     // Extract links
@@ -127,6 +136,6 @@ export const crawlWebsite = async (url: string): Promise<AuditResult> => {
     };
   } catch (error) {
     console.error('Error crawling website:', error);
-    throw new Error('Failed to analyze website. Please ensure the URL is accessible and try again.');
+    throw new Error(`Failed to analyze website: ${error instanceof Error ? error.message : 'Unknown error'}. Please ensure the URL is accessible and try again.`);
   }
 }; 
