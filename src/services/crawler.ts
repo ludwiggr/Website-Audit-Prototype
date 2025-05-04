@@ -35,20 +35,20 @@ export interface AuditResult {
 export const crawlWebsite = async (url: string): Promise<AuditResult> => {
   const startTime: number = performance.now();
   try {
-    // Use a more reliable CORS proxy
-    const corsProxy = 'https://api.allorigins.win/raw?url=';
-    const response = await fetch(corsProxy + encodeURIComponent(url), {
-      headers: {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
+    // Use our local proxy server
+    const proxyUrl = `http://localhost:3001/proxy?url=${encodeURIComponent(url)}`;
+    console.log('Attempting to fetch URL:', url);
+    
+    const response = await fetch(proxyUrl);
 
+    console.log('Response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
     }
     
     const html = await response.text();
+    console.log('Received HTML length:', html.length);
     
     if (!html || html.length < 100) {
       throw new Error('Received empty or invalid response from the server');
@@ -61,12 +61,17 @@ export const crawlWebsite = async (url: string): Promise<AuditResult> => {
     const title = doc.querySelector('title')?.textContent?.trim() || '';
     const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || '';
 
+    console.log('Extracted title:', title);
+    console.log('Extracted meta description:', metaDescription);
+
     // Extract headings
     const headings = {
       h1: Array.from(doc.querySelectorAll('h1')).map(h => h.textContent?.trim() || ''),
       h2: Array.from(doc.querySelectorAll('h2')).map(h => h.textContent?.trim() || ''),
       h3: Array.from(doc.querySelectorAll('h3')).map(h => h.textContent?.trim() || ''),
     };
+
+    console.log('Found headings:', headings);
 
     // Extract links
     const allLinks = Array.from(doc.querySelectorAll('a[href]'));
@@ -98,12 +103,16 @@ export const crawlWebsite = async (url: string): Promise<AuditResult> => {
         .map(link => link.getAttribute('href') || ''),
     };
 
+    console.log('Found links:', links);
+
     // Analyze images
     const images = Array.from(doc.querySelectorAll('img'));
     const imageAnalysis = {
       total: images.length,
       missingAlt: images.filter(img => !img.hasAttribute('alt')).length,
     };
+
+    console.log('Found images:', imageAnalysis);
 
     // Accessibility checks
     const accessibility = {
@@ -117,6 +126,8 @@ export const crawlWebsite = async (url: string): Promise<AuditResult> => {
       colorContrast: true, // This would require more complex analysis
       hasKeyboardNavigation: !!doc.querySelector('a:focus, button:focus, input:focus, select:focus, textarea:focus'),
     };
+
+    console.log('Accessibility analysis:', accessibility);
 
     const endTime: number = performance.now();
     const performanceMetrics = {
@@ -135,7 +146,12 @@ export const crawlWebsite = async (url: string): Promise<AuditResult> => {
       accessibility,
     };
   } catch (error) {
-    console.error('Error crawling website:', error);
+    console.error('Detailed error crawling website:', error);
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     throw new Error(`Failed to analyze website: ${error instanceof Error ? error.message : 'Unknown error'}. Please ensure the URL is accessible and try again.`);
   }
 }; 
